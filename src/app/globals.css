@@ -201,7 +201,7 @@ button:focus-visible, textarea:focus-visible, a:focus-visible {
   .workspace { min-height: 0; flex: 1 1 0; display: flex; flex-direction: column; border: 0; background: transparent; overflow: hidden; }
   .chat-panel { min-height: 0; flex: 1 1 0; height: auto; max-height: none; }
   .chat-heading { min-height: 68px; padding: 13px 15px; }
-  .chat-empty { width: min(100% - 32px, 420px); padding: 0; }
+  .chat-empty { width: min(100% - 32px, 420px); padding: 16px 0; }
   .empty-mark { margin-bottom: 12px; }
   .chat-empty h2 { font-size: 20px; }
   .chat-empty > p { margin: 8px 0 12px; }
