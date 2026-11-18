@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Explainboard
 
-## Getting Started
+**Ask anything. See the idea.** Explainboard is a visual study companion for self-directed secondary, university, and adult learners exploring unfamiliar ideas across subjects.
 
-First, run the development server:
+## Product intent
+
+Reading a clear answer can still leave a learner unsure whether they have built a useful mental model. Explainboard is designed around one focused loop: **ask → explain → see → retrieve**. Each live tutor response pairs a plain-language explanation with a spatial diagram and one low-stakes question the learner can answer before revealing a sample answer.
+
+The board is an explanatory sketch, not a source of verified measurements. The practice check is deliberately ungraded: the sample answer supports self-comparison without implying that a model can reliably score open-ended understanding. The product stays focused on one learner and one idea at a time; it is not a classroom management system, a saved notebook, or an authoritative reference.
+
+## Run locally
+
+Requires Node.js 20.9+ and npm.
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Enable live AI
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env.local`, then configure an OpenAI-compatible chat-completions endpoint:
 
-## Learn More
+```env
+TUTOR_API_URL=https://your-provider.example/v1/chat/completions
+TUTOR_API_KEY=your-server-side-key
+TUTOR_MODEL=your-model-name
+# Optional: set for providers/models that support reasoning control.
+TUTOR_REASONING_EFFORT=none
+# Optional: enable strict schema output on supporting providers (for example OpenRouter).
+TUTOR_USE_JSON_SCHEMA=true
+```
 
-To learn more about Next.js, take a look at the following resources:
+Both additional settings are optional; omit them for providers that do not support these options. For OpenRouter reasoning models that spend the output budget on internal reasoning, `none` can leave room for the visible answer and diagram. Strict JSON schema mode helps providers that support structured outputs return the explanation, diagram, and practice check in the expected shape. Restart the dev server after changing the environment. The API key is used only on the server and must not be put in a `NEXT_PUBLIC_` variable. Every live response must contain a short explanation, a valid diagram, and a bounded practice question with sample answer. The app validates all three before display.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Without these settings, the app explains how to configure the tutor. It does not return hard-coded answers or label scripted content as AI.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Explore the learning loop
 
-## Deploy on Vercel
+1. Ask a question from any subject.
+2. Read the answer in chat and inspect the generated diagram on the whiteboard.
+3. Try the short understanding check in your own words, then expand “Compare with a sample answer.”
+4. Ask a follow-up; up to eight prior user/assistant messages are sent as context. Practice drafts are not sent.
+5. Start a new chat to clear the conversation, practice checks, and diagram.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Implementation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Chat:** current-tab in-memory messages, IME-safe Enter-to-send, loading and error states, and a client-only draft for each practice check.
+- **Whiteboard:** responsive SVG canvas with validated text, connectors, boxes, circles, and smooth open/closed freeform paths for curves and hand-drawn shapes.
+- **AI:** server-side, OpenAI-compatible API adapter; each response proposes an explanation, diagram, and sample answer. The app does not score learner drafts or execute model-generated code or markup.
+- **Validation:** bounded input and history, bounded output text and diagram element count, coordinate and shape constraints, fixed color tones.
+- **Unavailable state:** without credentials, question submission returns a clear setup message.
+
+See [implementation.md](./implementation.md) for the end-to-end architecture, flow diagram, request/response contract, operations, and verification guide.
+
+## Checks
+
+```bash
+npm run lint
+npm test
+npx tsc --noEmit
+npm run build
+```
+
+## Privacy and limitations
+
+There are no accounts or server-side learner profiles. With live AI enabled, the current question and up to eight prior user/assistant messages are sent to the configured provider; practice drafts remain in browser memory and are not sent. Do not enter sensitive personal data. Sample answers and diagrams are model-generated and can be wrong; practice is not graded. The whiteboard uses a fixed set of safe SVG primitives; it does not interpret uploaded images or provide a user-operated freehand drawing tool. The prototype has no production rate limiter and is an educational aid rather than an authoritative source.
+
+## Evaluation evidence
+
+| Framework dimension | Evidence in this submission |
+|---|---|
+| Product understanding and problem framing | Defines the self-directed learner, the uncertainty after passive reading, and a bounded explain–visualize–retrieve loop. |
+| Originality and product thinking | Combines cross-subject explanations, freeform-capable sketches, and ungraded retrieval practice while avoiding an unnecessary LMS or score. |
+| Engineering and problem-solving | Bounded API inputs, timeouts, retries for invalid diagrams, shared response validation, safe SVG rendering, and responsive viewport sizing. |
+| AI integration and application | Live server-side provider configuration, structured response contract, no scripted success fallback, and explicit model limitations. |
+| Teaching and interaction quality | Learners can inspect the diagram, attempt a short check, and compare with a sample answer without disclosing their draft. |
+| Code quality and technical decisions | Small Next.js application, shared types/validators, focused tests, and documented trade-offs. |
+| Documentation and communication | This README describes the product and review flow; [implementation.md](./implementation.md) documents setup, architecture, data flow, verification, privacy, and limitations. |
+
+## Assignment submission status
+
+This checkout does not have a published GitHub repository or live demo URL configured, and the external submission form has not been completed. Those are release steps outside the source code. Before submitting, publish the repository, deploy the app with its server-only provider settings, provide the real demo URL and access instructions, and complete the [official assignment form](https://docs.google.com/forms/d/e/1FAIpQLSdFJoTxMEuFZrCHTbEgv7bbg2uLf33SjP7n0w2qUONR4kMRcA/viewform?usp=publish-editor). Do not use a committed key or a fake/simulated demo.
