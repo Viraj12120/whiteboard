@@ -100,6 +100,25 @@ const tutorReplySchema = {
       },
       required: ["question", "answer"],
     },
+    narration: {
+      type: "array",
+      minItems: 3,
+      maxItems: 10,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          text: { type: "string", minLength: 1, maxLength: 320 },
+          elementIndices: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: { type: "integer", minimum: 0, maximum: 9 },
+          },
+        },
+        required: ["text", "elementIndices"],
+      },
+    },
     board: {
       type: "object",
       additionalProperties: false,
@@ -111,7 +130,7 @@ const tutorReplySchema = {
       required: ["title", "elements"],
     },
   },
-  required: ["message", "board", "practice"],
+  required: ["message", "board", "practice", "narration"],
 };
 
 type TutorInput = {
@@ -197,8 +216,9 @@ export async function POST(request: Request) {
       role: "system",
       content: [
         "You are Explainboard, a clear and curious visual explainer. Answer questions across subjects; do not constrain explanations to mathematics.",
-        "Give a clear answer and honor requests for detail in up to 1,200 characters. Return only a JSON object with exactly three top-level keys: message (string), practice (object with question and answer strings), and board (object with title (string), optional subtitle (string), and elements (array)).",
+        "Give a clear answer and honor requests for detail in up to 1,200 characters. Return only a JSON object with exactly four top-level keys: message, practice, narration, and board.",
         "Include one brief, low-stakes retrieval question that checks an important idea from the explanation and a concise sample answer. Keep the question within 240 characters and the answer within 600. Ground both in the explanation, avoid trivia and personal questions, and do not claim to grade the learner.",
+        "Include 3-8 concise ordered narration steps in the same language as the explanation. Each step has text (at most 320 characters) and elementIndices (one or more zero-based indexes into board.elements). Every board element must be referenced at least once. Each step should describe the visual action that appears as it is spoken; group related elements into one step when helpful.",
         "Use 3-10 elements, preferably 4-7. Use at least 55% of both the board's width and height. Distribute content across the full canvas, with items in more than one row and column; do not make only a single short centered row. Keep at least 8 percent of clear space between separate items and do not cluster everything in the middle. Arrange steps left-to-right or top-to-bottom with generous gaps. Use at most one short text label per item; never label arrows or lines. Connectors may touch item edges but must not cross labels. Do not overlap any text, boxes, or circles.",
         "Use freeform paths for curves, trajectories, outlines, and organic shapes. A freeform has type \"freeform\", 2-24 points of {x,y}, a required closed boolean, and optional tone; use at least 3 points when closed. Example: {\"type\":\"freeform\",\"points\":[{\"x\":12,\"y\":72},{\"x\":32,\"y\":45},{\"x\":52,\"y\":30},{\"x\":78,\"y\":65}],\"closed\":false,\"tone\":\"accent\"}. The path is smoothly drawn through the points. Use a closed path for hand-drawn shapes such as triangles, stars, hills, or leaves, rather than forcing everything into boxes and circles.",
         "Other exact element shapes: {\"type\":\"text\",\"x\":50,\"y\":18,\"text\":\"Sunlight\",\"tone\":\"accent\"}; {\"type\":\"box\",\"x\":10,\"y\":38,\"width\":22,\"height\":18,\"label\":\"Leaves\",\"tone\":\"ink\"}; {\"type\":\"circle\",\"x\":75,\"y\":72,\"radius\":10,\"label\":\"Cloud\",\"tone\":\"muted\"}; {\"type\":\"arrow\",\"x1\":32,\"y1\":47,\"x2\":45,\"y2\":47}. Never use abbreviated or alternate property names such as w or h. Do not include text size.",
@@ -219,7 +239,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           model,
           temperature: 0.1,
-          max_tokens: 1100,
+          max_tokens: 1600,
           ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
           response_format: useJsonSchema === "true"
             ? {
@@ -248,8 +268,8 @@ export async function POST(request: Request) {
         messages.push({
           role: "user",
           content: attempt === 0
-            ? "Your previous reply did not pass validation or the diagram layout checks. Redraw a simpler diagram with only 4-6 elements. Put useful items in distinct left, center, and right areas and in upper and lower rows, spanning at least 55% of both board dimensions. Leave generous gaps, shorten labels, and ensure text, boxes, and circles do not overlap. Keep arrows unlabeled, include one brief grounded practice question and concise sample answer, and follow the exact required schema."
-            : "The revised reply is still invalid or its diagram is too crowded or compact. Use 3-5 diagram items spaced far apart: put at least one near the top, one near the middle, and one near the bottom, across both left and right sides. Keep labels short, place no text over shapes, and include one brief grounded practice question with a concise sample answer. Return valid JSON matching the exact schema.",
+            ? "Your previous reply did not pass validation or the diagram layout checks. Redraw a simpler diagram with only 4-6 elements. Put useful items in distinct left, center, and right areas and in upper and lower rows, spanning at least 55% of both board dimensions. Leave generous gaps, shorten labels, and ensure text, boxes, and circles do not overlap. Keep arrows unlabeled, include one brief grounded practice question and concise sample answer, and map every board element to at least one ordered narration step using zero-based elementIndices. Follow the exact required schema."
+            : "The revised reply is still invalid or its diagram is too crowded or compact. Use 3-5 diagram items spaced far apart: put at least one near the top, one near the middle, and one near the bottom, across both left and right sides. Keep labels short, place no text over shapes, include one brief grounded practice question with a concise sample answer, and provide 3-5 ordered narration steps that cover every board element. Return valid JSON matching the exact schema.",
         });
       }
     }

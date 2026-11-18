@@ -3,7 +3,12 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { Whiteboard } from "@/components/whiteboard";
-import { isTutorReply, type TutorPractice, type Whiteboard as WhiteboardData } from "@/lib/whiteboard";
+import {
+  isTutorReply,
+  type NarrationStep,
+  type TutorPractice,
+  type Whiteboard as WhiteboardData,
+} from "@/lib/whiteboard";
 
 type Message = {
   id: string;
@@ -16,6 +21,8 @@ type ServiceMode = "checking" | "ready" | "setup";
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [board, setBoard] = useState<WhiteboardData | null>(null);
+  const [narration, setNarration] = useState<NarrationStep[] | null>(null);
+  const [boardVersion, setBoardVersion] = useState(0);
   const [question, setQuestion] = useState("");
   const [serviceMode, setServiceMode] = useState<ServiceMode>("checking");
   const [sending, setSending] = useState(false);
@@ -83,6 +90,8 @@ export default function Home() {
         practice: payload.practice,
       }]);
       setBoard(payload.board);
+      setNarration(payload.narration);
+      setBoardVersion((version) => version + 1);
     } catch (error) {
       if (controllerRef.current !== controller) return;
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -108,6 +117,8 @@ export default function Home() {
     controllerRef.current = null;
     setMessages([]);
     setBoard(null);
+    setNarration(null);
+    setBoardVersion((version) => version + 1);
     setQuestion("");
     setSending(false);
     questionRef.current?.focus();
@@ -192,7 +203,16 @@ export default function Home() {
           </form>
         </section>
 
-        <Whiteboard board={board} onClear={() => setBoard(null)} />
+        <Whiteboard
+          key={boardVersion}
+          board={board}
+          narration={narration}
+          onClear={() => {
+            setBoard(null);
+            setNarration(null);
+            setBoardVersion((version) => version + 1);
+          }}
+        />
       </div>
       <footer className="app-footer">
         <span>Answers may be imperfect. Ask follow-up questions to explore an idea.</span>

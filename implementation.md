@@ -1,6 +1,6 @@
 # Explainboard — End-to-End Guide
 
-Explainboard is a visual study companion for self-directed secondary, university, and adult learners exploring unfamiliar ideas across subjects. It addresses a small learning problem: a learner may read an explanation without knowing whether they formed a useful mental model. The intended loop is **ask → explain → see → retrieve**: a configured language model returns an explanation, a structured diagram, and one low-stakes practice question with a sample answer. The learner can draft a response locally and reveal the sample answer to compare; the app does not grade the draft.
+Explainboard is a visual study companion for self-directed secondary, university, and adult learners exploring unfamiliar ideas across subjects. It addresses a small learning problem: a learner may read an explanation without knowing whether they formed a useful mental model. The intended loop is **ask → explain → see → hear → retrieve**: a configured language model returns an explanation, a structured diagram, narration segments mapped to diagram elements, and one low-stakes practice question with a sample answer. The learner can draft a response locally and reveal the sample answer to compare; the app does not grade the draft.
 
 The product deliberately stays focused on one learner and one idea at a time. It does not claim that a generated diagram is measured evidence, that the practice answer is definitive, or that a model can verify mastery.
 
@@ -8,6 +8,7 @@ The product deliberately stays focused on one learner and one idea at a time. It
 
 - **A focused learner loop over a broad classroom product.** One person can ask a follow-up immediately; accounts, courses, and saved notebooks are outside this prototype’s scope.
 - **Ungraded retrieval over model scoring.** A learner can think or draft before revealing a sample answer. The draft stays in the browser, and the app avoids presenting an unverified model judgment as a score.
+- **Browser speech instead of a separate TTS service.** Narration is text returned by the tutor and is spoken with the Web Speech API. The app makes no separate TTS request. Playback controls synchronize segments with mapped board elements; seek moves by segment because browser speech synthesis does not expose a reliable audio timeline.
 - **Structured drawings over generated markup.** The model proposes bounded diagram data; shared validation and fixed SVG primitives keep layout and rendering under application control.
 - **Live AI with explicit setup over a fake fallback.** Missing provider configuration is visible and actionable; the app does not disguise scripted responses as live tutoring.
 
@@ -78,11 +79,11 @@ flowchart TD
     O --> P{Explanation, practice check, and 3–10 spaced valid board elements?}
     P -->|No| Q[Retry up to twice with spacing guidance]
     Q --> L
-    P -->|Yes| R[Return explanation, practice check, and board JSON]
+    P -->|Yes| R[Return explanation, practice check, mapped narration, and board JSON]
     R --> S[Browser validates reply again]
     S --> T{Reply is valid?}
     T -->|No| U[Show safe-display error; keep previous board]
-    T -->|Yes| V[Append answer and practice check; replace board]
+    T -->|Yes| V[Append answer and practice check; replace board and narration]
     Z --> W[Keep existing board; allow another question]
     N --> W
     Q --> W
@@ -95,6 +96,11 @@ flowchart TD
     AA -->|Write a practice draft| AD[Keep draft in browser component state]
     AD --> AE[Reveal sample answer and compare; do not score or send draft]
     AE --> W
+    AA -->|Play, pause, resume, restart| AF[Control browser speech synthesis]
+    AA -->|Seek to a narrated step| AG[Select narration segment and mapped elements]
+    AF --> AH[Speak segment; reveal and highlight mapped elements]
+    AG --> AH
+    AH --> W
 ```
 
 ## 3. Application lifecycle
@@ -104,9 +110,9 @@ flowchart TD
 3. **Context selection.** The browser takes up to the last eight prior user and assistant explanation messages. Error messages and practice drafts are excluded. Conversation state stays in React memory for the current tab and is not saved to local storage.
 4. **Request validation.** `POST /api/tutor` checks the request body is at most 12,000 characters, parses JSON, checks a non-empty question of at most 1,200 characters, and validates up to eight history items with supported roles and bounded content. It returns 400 for malformed/invalid input and 413 for an oversized body.
 5. **Provider call.** The server checks `TUTOR_API_URL`, `TUTOR_API_KEY`, and `TUTOR_MODEL`. If configured, it sends the system prompt, the selected prior turns, and the latest question to the OpenAI-compatible chat-completions endpoint. If `TUTOR_REASONING_EFFORT` is set to a supported value, that reasoning preference is included. If `TUTOR_USE_JSON_SCHEMA=true`, it requests strict structured output; otherwise it requests a JSON object. The call has a 20-second timeout. The API key is sent only from the server.
-6. **Model output validation.** The endpoint expects JSON in `choices[0].message.content`, with a `message`, a `practice` object (`question` and `answer`), and a `board` object. The board requires a title and 3–10 elements. Supported primitives are `text`, `box`, `circle`, `line`, `arrow`, and `freeform`; positions, path point count, dimensions, text, label lengths, and tones are bounded. Freeform paths are arrays of 2–24 numeric points and may be open strokes or closed outlines. Practice text is length-bounded. Text elements are centered and wrapped to short lines. Text, boxes, and circles may not overlap; the diagram must span at least 55% of both board dimensions; connectors have no inline labels. If the reply is invalid or the board is crowded/too compact, the server retries twice with more specific guidance, then fails safely with HTTP 502.
-7. **Safe rendering and practice.** The browser validates the reply again. Freeform paths are assembled from validated numeric coordinates into smooth SVG curves. The whiteboard renders only fixed React SVG elements from validated data and a fixed palette; it never injects model-generated HTML, SVG markup, scripts, or styles. A small practice card lets the learner draft an answer in browser component state and reveal the model’s sample answer. The draft is neither scored nor sent to the tutor.
-8. **State update and recovery.** On success, the explanation and practice check are appended to the conversation and the board is replaced. During follow-up generation, the existing board remains visible; request failure does not erase it. Errors appear in chat. “Clear” removes only the drawing. “New chat” aborts an in-flight request and clears the conversation, board, practice checks, and draft state.
+6. **Model output validation.** The endpoint expects JSON in `choices[0].message.content`, with a `message`, a `practice` object (`question` and `answer`), a `narration` array, and a `board` object. The board requires a title and 3–10 elements. Narration contains 3–10 bounded text segments; each segment maps zero-based `elementIndices` into `board.elements`, and every board element must be covered. Supported primitives are `text`, `box`, `circle`, `line`, `arrow`, and `freeform`; positions, path point count, dimensions, text, label lengths, and tones are bounded. Freeform paths are arrays of 2–24 numeric points and may be open strokes or closed outlines. Practice text is length-bounded. Text elements are centered and wrapped to short lines. Text, boxes, and circles may not overlap; the diagram must span at least 55% of both board dimensions; connectors have no inline labels. If the reply is invalid or the board is crowded/too compact, the server retries twice with more specific guidance, then fails safely with HTTP 502.
+7. **Safe rendering, narration, and practice.** The browser validates the reply again. Freeform paths are assembled from validated numeric coordinates into smooth SVG curves. The whiteboard renders only fixed React SVG elements from validated data and a fixed palette; it never injects model-generated HTML, SVG markup, scripts, or styles. The browser’s `SpeechSynthesis` API speaks one narration segment at a time; the segment’s mapped elements appear and are highlighted as that utterance starts. Play, Pause, Resume, Restart, and a step slider control playback. If browser speech is unavailable, the voice buttons are disabled and the slider still previews mapped elements. The learner can also draft an answer in browser component state and reveal the model’s sample answer. The draft is neither scored nor sent to the tutor.
+8. **State update and recovery.** On success, the explanation and practice check are appended to the conversation and the board/narration are replaced. During follow-up generation, the existing board and its playback remain available; a new valid answer replaces them. Request failure does not erase the existing result. “Clear” removes the drawing and cancels speech. “New chat” aborts an in-flight request and clears the conversation, board, practice checks, narration, and draft state.
 
 ## 4. Request and response contract
 
@@ -135,6 +141,11 @@ flowchart TD
     "question": "What does light energy help the plant make?",
     "answer": "It helps the plant make sugar from water and carbon dioxide."
   },
+  "narration": [
+    { "text": "Sunlight provides energy to the plant.", "elementIndices": [0] },
+    { "text": "Water and carbon dioxide enter the process.", "elementIndices": [1] },
+    { "text": "The plant makes sugar and releases oxygen.", "elementIndices": [2, 3] }
+  ],
   "board": {
     "title": "Photosynthesis",
     "subtitle": "Light energy moves through a plant",
@@ -148,7 +159,7 @@ flowchart TD
 }
 ```
 
-The sample is a shape illustration of the contract, not an offline response supplied by the app. Actual requests require a configured provider. Coordinates are percentage-like values from 3 to 97. Geometry and label limits are checked in `src/lib/whiteboard.ts`. Freeform `points` are data only—not SVG path strings—and `closed` controls whether the final point connects to the first.
+The sample is a shape illustration of the contract, not an offline response supplied by the app. Actual requests require a configured provider. Narration `elementIndices` are zero-based indexes into the board’s `elements`; every board element must appear in at least one step. Coordinates are percentage-like values from 3 to 97. Geometry, narration mappings, and text limits are checked in `src/lib/whiteboard.ts`. Freeform `points` are data only—not SVG path strings—and `closed` controls whether the final point connects to the first.
 
 ### Error behavior
 
@@ -164,13 +175,13 @@ The sample is a shape illustration of the contract, not an offline response supp
 
 | File | Responsibility |
 |---|---|
-| `src/app/page.tsx` | Chat UI, readiness status, conversation state, client-only practice drafts, request lifecycle, reset and clear actions |
+| `src/app/page.tsx` | Chat UI, readiness status, conversation and narration state, client-only practice drafts, request lifecycle, reset and clear actions |
 | `src/app/api/health/route.ts` | Non-secret provider configuration status |
 | `src/app/api/tutor/route.ts` | Request limits, schema checks, provider request, timeout, model response parsing |
 | `src/lib/whiteboard.ts` | Shared types and whiteboard/tutor reply validators |
 | `src/lib/whiteboard.test.ts` | Unit tests for valid and invalid diagram shapes, bounds, and reply schema |
-| `src/components/whiteboard.tsx` | Accessible SVG renderer for validated drawing elements |
-| `src/app/globals.css` | Minimalist responsive layout, chat and whiteboard presentation |
+| `src/components/whiteboard.tsx` | Accessible SVG renderer, synchronized browser speech, and playback/seek controls |
+| `src/app/globals.css` | Minimalist responsive layout, chat, whiteboard, and narration controls |
 | `src/app/layout.tsx` | App metadata and root HTML layout |
 | `.env.example` | Names of optional server-only provider settings |
 
@@ -188,20 +199,23 @@ npm run build
 
 There is a Vitest unit suite for diagram validation. This project does not currently have an automated browser E2E test runner. For a manual end-to-end pass, start the app with `npm run dev`, then verify:
 
-1. The page loads, the health badge settles to “AI ready” or “AI setup needed,” and the empty chat/whiteboard are visible.
+1. The page loads, the health badge settles to “AI ready” or “AI setup needed,” and the empty chat/whiteboard are visible. The narration panel is also visible with playback disabled until an answer is ready.
 2. With no provider credentials, submit a question and confirm setup guidance appears without a fake answer.
-3. With valid provider credentials, ask a question and confirm the answer, diagram, and one practice check appear.
-4. Write a practice draft, reveal the sample answer, and confirm the draft is not sent or scored.
-5. Ask a follow-up; confirm the previous diagram remains during loading and on error, and valid output replaces it.
-6. Clear the board, then start a new chat; confirm each action has the documented scope.
-7. Check keyboard behavior (Enter, Shift+Enter, IME composition) and responsive layouts at narrow and desktop widths.
-8. Confirm malformed JSON returns 400, an oversized body returns 413, and an unconfigured valid question returns 503.
+3. With valid provider credentials, ask a question and confirm the answer, diagram, practice check, and mapped narration appear.
+4. Play narration and confirm mapped elements reveal/highlight in step order; pause, resume, seek to another step, and restart.
+5. Write a practice draft, reveal the sample answer, and confirm the draft is not sent or scored.
+6. Ask a follow-up; confirm the previous diagram remains during loading and on error, and valid output replaces it.
+7. Clear the board, then start a new chat; confirm speech is canceled and each action has the documented scope.
+8. Check keyboard behavior (Enter, Shift+Enter, IME composition) and responsive layouts at narrow and desktop widths.
+9. In a browser without `SpeechSynthesis`, confirm voice buttons are unavailable and the step slider still previews mapped elements.
+10. Confirm malformed JSON returns 400, an oversized body returns 413, and an unconfigured valid question returns 503.
 
 ## 7. Privacy, security, and limitations
 
 - No accounts, server-side learner profiles, or persistent browser conversation storage are implemented.
 - When a provider is configured, the current question and up to eight previous user/assistant turns are sent to that provider. Avoid sensitive personal information.
 - Practice drafts remain in browser component state and are not sent to the provider. The generated sample answer is model output, not a verified answer key; no correctness score is presented.
+- Narration text is generated by the configured model; the app makes no separate TTS request. Browser/operating-system voice processing, availability, and pronunciation follow that platform’s behavior. Seek selects a narration step, not an arbitrary time within an utterance.
 - The health endpoint exposes only a boolean configuration state; it does not return the key or endpoint.
 - Diagram rendering is constrained to fixed SVG primitives, including model-generated open and closed freeform paths; uploaded images, user-operated freehand input, pan/zoom, and executable model markup are not supported.
 - No production rate limiter is implemented. Add provider-aware abuse controls before exposing a paid endpoint publicly.

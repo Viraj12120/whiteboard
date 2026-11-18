@@ -15,6 +15,11 @@ describe("whiteboard output validation", () => {
     question: "What causes water to evaporate?",
     answer: "Heat gives liquid water enough energy to become water vapor.",
   };
+  const validNarration = [
+    { text: "Heat changes surface water into vapor.", elementIndices: [0] },
+    { text: "The vapor moves upward and cools.", elementIndices: [1] },
+    { text: "Water droplets gather to form clouds.", elementIndices: [2] },
+  ];
 
   it("accepts a bounded visual explanation", () => {
     expect(isWhiteboard(validBoard)).toBe(true);
@@ -22,6 +27,7 @@ describe("whiteboard output validation", () => {
       message: "Water cycles through land, air and sea.",
       board: validBoard,
       practice: validPractice,
+      narration: validNarration,
     })).toBe(true);
   });
 
@@ -30,6 +36,7 @@ describe("whiteboard output validation", () => {
       message: "Water cycles through land, air and sea.",
       board: validBoard,
       practice: validPractice,
+      narration: validNarration,
     };
 
     expect(isTutorReply({ ...reply, practice: undefined })).toBe(false);
@@ -42,6 +49,42 @@ describe("whiteboard output validation", () => {
     expect(isTutorReply({
       ...reply,
       practice: { question: "A usable question?", answer: "a".repeat(601) },
+    })).toBe(false);
+  });
+
+  it("requires narration steps to map every board element exactly by index", () => {
+    const reply = {
+      message: "Water cycles through land, air and sea.",
+      board: validBoard,
+      practice: validPractice,
+      narration: validNarration,
+    };
+
+    expect(isTutorReply({ ...reply, narration: undefined })).toBe(false);
+    expect(isTutorReply({ ...reply, narration: validNarration.slice(0, 2) })).toBe(false);
+    expect(isTutorReply({
+      ...reply,
+      narration: [
+        { text: "Water evaporates.", elementIndices: [0] },
+        { text: "Vapor rises.", elementIndices: [1] },
+        { text: "Clouds gather.", elementIndices: [1] },
+      ],
+    })).toBe(false);
+    expect(isTutorReply({
+      ...reply,
+      narration: [
+        { text: "Water evaporates.", elementIndices: [0] },
+        { text: "Vapor rises.", elementIndices: [1.5] },
+        { text: "Clouds gather.", elementIndices: [2] },
+      ],
+    })).toBe(false);
+    expect(isTutorReply({
+      ...reply,
+      narration: [
+        { text: "Water evaporates.", elementIndices: [0] },
+        { text: "Vapor rises.", elementIndices: [1] },
+        { text: "Clouds gather.", elementIndices: [3] },
+      ],
     })).toBe(false);
   });
 

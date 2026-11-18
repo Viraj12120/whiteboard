@@ -151,6 +151,12 @@ button:focus-visible, textarea:focus-visible, a:focus-visible {
 .whiteboard-header h1 { font-size: 13px; }
 .whiteboard-header p { max-width: min(60vw, 520px); margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .clear-board { min-height: 34px; padding: 0 10px; font-size: 11px; }
+.narration-controls { display: grid; grid-template-columns: auto minmax(55px, 1fr) auto; align-items: center; gap: 5px 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.narration-buttons { display: flex; gap: 6px; }
+.narration-button { min-height: 30px; padding: 0 9px; font-size: 10px; }
+.narration-seek { width: 100%; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.narration-step { color: var(--muted); font-size: 10px; white-space: nowrap; }
+.narration-status { grid-column: 1 / -1; color: var(--quiet); font-size: 10px; line-height: 1.4; }
 .whiteboard-surface { min-height: 0; flex: 1; display: grid; place-items: center; overflow: hidden; margin: 16px 0 11px; border: 1px solid #e4e6e3; border-radius: 7px; background: var(--surface); }
 .whiteboard-svg { display: block; width: 100%; max-height: 100%; aspect-ratio: 10 / 7; }
 .draw-ink { color: #39434a; }
@@ -164,6 +170,7 @@ button:focus-visible, textarea:focus-visible, a:focus-visible {
 .board-circle.draw-accent { fill: #edf3f5; stroke: #7893a1; }
 .board-circle.draw-muted { fill: #f6f7f5; stroke: #c2c8c3; }
 .board-freeform { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.board-element-active { filter: drop-shadow(0 0 5px #7893a180); }
 .board-label { fill: #36403b; font-family: Arial, Helvetica, sans-serif; font-size: 15px; }
 .board-line, .board-arrow { stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .board-line { stroke-dasharray: 4 4; }

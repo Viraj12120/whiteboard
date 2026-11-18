@@ -52,10 +52,16 @@ export type TutorPractice = {
   answer: string;
 };
 
+export type NarrationStep = {
+  text: string;
+  elementIndices: number[];
+};
+
 export type TutorReply = {
   message: string;
   board: Whiteboard;
   practice: TutorPractice;
+  narration: NarrationStep[];
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -66,6 +72,24 @@ const isTone = (value: unknown): value is Tone =>
   value === undefined || value === "ink" || value === "accent" || value === "muted";
 const isLabel = (value: unknown, maximum: number): value is string =>
   typeof value === "string" && value.trim().length > 0 && value.length <= maximum;
+
+function isNarration(value: unknown, elementCount: number): value is NarrationStep[] {
+  if (!Array.isArray(value) || value.length < 3 || value.length > 10) return false;
+  const referencedElements = new Set<number>();
+  const validSteps = value.every((step) => {
+    if (!isRecord(step) || !isLabel(step.text, 320) ||
+      !Array.isArray(step.elementIndices) ||
+      step.elementIndices.length < 1 ||
+      step.elementIndices.length > elementCount
+    ) return false;
+    return step.elementIndices.every((index) => {
+      if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= elementCount) return false;
+      referencedElements.add(index);
+      return true;
+    });
+  });
+  return validSteps && referencedElements.size === elementCount;
+}
 
 function fitsLines(value: string, charactersPerLine: number, maximumLines = 3) {
   const words = value.trim().split(/\s+/);
@@ -233,5 +257,6 @@ export function isTutorReply(value: unknown): value is TutorReply {
     isWhiteboard(value.board) &&
     isRecord(value.practice) &&
     isLabel(value.practice.question, 240) &&
-    isLabel(value.practice.answer, 600);
+    isLabel(value.practice.answer, 600) &&
+    isNarration(value.narration, value.board.elements.length);
 }
